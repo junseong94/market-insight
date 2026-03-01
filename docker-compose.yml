@@ -7,6 +7,7 @@ services:
     env_file: .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
 
   # Airflow 공통 설정을 x-airflow로 묶어서 재사용 (Java의 상속 개념)
   # <<: *airflow-common 으로 아래 서비스들이 이 설정을 복사해감
@@ -14,7 +15,7 @@ services:
     image: apache/airflow:2.10.5-python3.12
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://market:market1234@postgres:5432/market_insight
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://market:market1234@postgres:5432/airflow
       - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
       - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True
