@@ -101,5 +101,16 @@ class PostgresStorage:
         cur.close()
         return codes
 
+    def get_known_post_ids(self, stock_code, limit=200):
+        """최근 게시글 ID 목록 조회 (누락 방지 비교용)"""
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT post_id FROM posts WHERE stock_code = %s ORDER BY collected_at DESC LIMIT %s",
+            (stock_code, limit)
+        )
+        ids = {str(row[0]) for row in cur.fetchall()}
+        cur.close()
+        return ids
+
     def close(self):
         self.conn.close()

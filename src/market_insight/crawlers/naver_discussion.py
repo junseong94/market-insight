@@ -30,6 +30,41 @@ class NaverDiscussionCrawler(BaseCrawler):
             post["comments"] = self._fetch_comments(post["post_id"])
         return posts
 
+    def crawl_until_caught_up(self, stock_code, known_post_ids=None, max_pages=10):
+        """페이지를 순회하며 새 게시글을 모두 수집 (이전 수집분과 겹칠 때까지)
+
+        - known_post_ids: DB에 이미 존재하는 post_id 집합
+        - max_pages: 안전 장치 (최대 페이지 수)
+        - 이미 수집한 게시글은 본문/댓글 요청을 건너뛰어 HTTP 요청 절약
+        """
+        if known_post_ids is None:
+            known_post_ids = set()
+
+        all_posts = []
+
+        for page in range(1, max_pages + 1):
+            page_posts = self._fetch_post_list(stock_code, page)
+            if not page_posts:
+                break
+
+            # post_id가 유효한 게시글만 필터
+            valid_posts = [p for p in page_posts if p.get("post_id")]
+
+            # 새 게시글만 본문+댓글 수집 (HTTP 요청 절약)
+            new_posts = [p for p in valid_posts if p["post_id"] not in known_post_ids]
+
+            for post in new_posts:
+                post["content"] = self._fetch_post_detail(stock_code, post["post_id"])
+                post["comments"] = self._fetch_comments(post["post_id"])
+
+            all_posts.extend(new_posts)
+
+            # 이 페이지에 이미 수집한 게시글이 있으면 → 이전 수집분과 겹침, 중단
+            if len(new_posts) < len(valid_posts):
+                break
+
+        return all_posts
+
     def _fetch_post_list(self, stock_code, page):
         url = "https://finance.naver.com/item/board.naver"
         params = {"code": stock_code, "page": page}

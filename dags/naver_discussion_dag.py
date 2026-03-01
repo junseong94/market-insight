@@ -3,7 +3,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 
 KST = pendulum.timezone("Asia/Seoul")
-PAGES_PER_STOCK = 1
+MAX_PAGES = 10  # 종목당 최대 순회 페이지 (안전 장치)
 
 
 def get_stock_codes():
@@ -16,22 +16,20 @@ def get_stock_codes():
     return codes
 
 
-def crawl_and_save(stock_code, pages):
-    """종목 하나를 크롤링해서 DB에 저장"""
+def crawl_and_save(stock_code):
+    """종목 하나를 크롤링해서 DB에 저장 (이전 수집분과 겹칠 때까지 페이지 순회)"""
     from market_insight.crawlers.naver_discussion import NaverDiscussionCrawler
     from market_insight.storage.postgres import PostgresStorage
 
-    crawler = NaverDiscussionCrawler()
     storage = PostgresStorage()
+    known_ids = storage.get_known_post_ids(stock_code)
 
-    total = 0
-    for page in range(1, pages + 1):
-        posts = crawler.crawl(stock_code, page=page)
-        storage.save_posts(posts)
-        total += len(posts)
+    crawler = NaverDiscussionCrawler()
+    posts = crawler.crawl_until_caught_up(stock_code, known_ids, max_pages=MAX_PAGES)
 
+    storage.save_posts(posts)
     storage.close()
-    print(f"[{stock_code}] {total}건 저장 완료")
+    print(f"[{stock_code}] {len(posts)}건 신규 저장 완료")
 
 
 def crawl_all_stocks(**context):
@@ -40,7 +38,7 @@ def crawl_all_stocks(**context):
     print(f"크롤링 대상: {len(codes)}종목")
 
     for code in codes:
-        crawl_and_save(code, PAGES_PER_STOCK)
+        crawl_and_save(code)
 
     print(f"전체 완료: {len(codes)}종목")
 
