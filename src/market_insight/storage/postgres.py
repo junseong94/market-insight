@@ -101,6 +101,30 @@ class PostgresStorage:
         cur.close()
         return codes
 
+    def save_daily_prices(self, prices):
+        """일별 시세 UPSERT (stocks 테이블에 존재하는 종목만 저장)"""
+        cur = self.conn.cursor()
+
+        saved = 0
+        for price in prices:
+            cur.execute("""
+                INSERT INTO daily_prices (stock_code, trade_date, open_price, high_price, low_price, close_price, volume)
+                SELECT %(stock_code)s, %(trade_date)s, %(open_price)s, %(high_price)s, %(low_price)s, %(close_price)s, %(volume)s
+                WHERE EXISTS (SELECT 1 FROM stocks WHERE stock_code = %(stock_code)s)
+                ON CONFLICT (stock_code, trade_date) DO UPDATE SET
+                    open_price  = EXCLUDED.open_price,
+                    high_price  = EXCLUDED.high_price,
+                    low_price   = EXCLUDED.low_price,
+                    close_price = EXCLUDED.close_price,
+                    volume      = EXCLUDED.volume,
+                    collected_at = NOW()
+            """, price)
+            saved += cur.rowcount
+
+        self.conn.commit()
+        cur.close()
+        print(f"일별 시세 저장: {saved}/{len(prices)}건 (stocks 테이블 매칭분)")
+
     def get_known_post_ids(self, stock_code, limit=200):
         """최근 게시글 ID 목록 조회 (누락 방지 비교용)"""
         cur = self.conn.cursor()

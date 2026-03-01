@@ -65,8 +65,23 @@ cur.execute("""
     );
 """)
 
+# daily_prices 테이블 (일별 시세)
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS daily_prices (
+        stock_code  VARCHAR(20) NOT NULL,
+        trade_date  DATE NOT NULL,
+        open_price  INTEGER,
+        high_price  INTEGER,
+        low_price   INTEGER,
+        close_price INTEGER,
+        volume      BIGINT,
+        collected_at TIMESTAMP DEFAULT NOW(),
+        PRIMARY KEY (stock_code, trade_date)
+    );
+""")
+
 conn.commit()
 cur.close()
 conn.close()
 
-print("테이블 생성 완료: stocks, themes, stock_themes, posts, comments")
+print("테이블 생성 완료: stocks, themes, stock_themes, posts, comments, daily_prices")

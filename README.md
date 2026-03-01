@@ -10,7 +10,7 @@
 |------|------|
 | 언어 | Python 3.14+ |
 | 패키지 관리 | Poetry |
-| 데이터 수집 | requests + BeautifulSoup |
+| 데이터 수집 | requests + BeautifulSoup, 공공데이터포털 API |
 | 오케스트레이션 | Apache Airflow 2.10 (Docker Compose, LocalExecutor) |
 | 저장소 | PostgreSQL 17 (DW) |
 | 컨테이너 | Docker Compose |
@@ -28,14 +28,16 @@ market-insight/
 ├── .env                            # DB 접속 정보 (git-ignored)
 ├── dags/
 │   ├── naver_discussion_dag.py     # 종목토론방 크롤링 DAG (매시간)
-│   └── stock_listing_dag.py        # 종목/테마 업데이트 DAG (매일)
+│   ├── stock_listing_dag.py        # 종목/테마 업데이트 DAG (매일)
+│   └── daily_prices_dag.py         # 일별 시세 수집 DAG (매일)
 ├── src/
 │   └── market_insight/
 │       ├── crawlers/
 │       │   ├── base.py             # 크롤러 추상 클래스 (BaseCrawler)
 │       │   ├── naver_discussion.py # 종목토론방 크롤러 (목록+본문+댓글)
 │       │   ├── naver_stock_listing.py  # 시총 상위 종목 크롤러
-│       │   └── naver_theme.py      # 테마/섹터 크롤러
+│       │   ├── naver_theme.py      # 테마/섹터 크롤러
+│       │   └── public_data_price.py # 일별 시세 크롤러 (공공데이터포털 API)
 │       ├── storage/
 │       │   └── postgres.py         # PostgreSQL 저장 (psycopg2 raw SQL)
 │       ├── models/
@@ -81,6 +83,7 @@ market_insight DB
 stocks          종목 마스터 (시총 상위 500, KOSPI+KOSDAQ)
 themes          테마 목록 (500+개)
 stock_themes    종목-테마 N:N 매핑
+daily_prices    일별 시세 (OHLCV)
 posts           종목토론방 게시글
 comments        게시글 댓글
 ```
@@ -89,7 +92,7 @@ comments        게시글 댓글
 
 ### 1. 종목/테마 업데이트 (`stock_listing_update` DAG)
 
-매일 평일 06:00 KST에 실행. 장 시작 전 종목 마스터를 갱신합니다.
+매일 06:00 KST에 실행. 장 시작 전 종목 마스터를 갱신합니다.
 
 ```
 update_stock_listing ──→ update_themes
@@ -108,7 +111,7 @@ update_stock_listing ──→ update_themes
 
 ### 2. 종목토론방 크롤링 (`naver_discussion` DAG)
 
-평일 매시간 실행. DB에서 활성 종목 500개를 읽어 토론방을 수집합니다.
+매시간 실행. DB에서 활성 종목 500개를 읽어 토론방을 수집합니다.
 
 ```
 crawl_all_stocks
@@ -128,6 +131,25 @@ crawl_all_stocks
 
 > **누락 방지**: 이전 수집분과 겹칠 때까지 페이지를 순회합니다 (최대 10페이지). DB에 이미 있는 post_id와 비교하여 새 게시글만 본문/댓글을 수집하므로 HTTP 요청을 절약합니다. UPSERT로 중복도 방지됩니다.
 
+### 3. 일별 시세 수집 (`daily_prices` DAG)
+
+매일 18:00 KST에 실행. 공공데이터포털 API로 전일 시세를 수집합니다.
+
+```
+fetch_and_save_prices
+    │
+    ├─ 공공데이터포털 금융위원회 주식시세정보 API 호출
+    │   (전일 날짜 기준, 전체 종목 한 번에 수집)
+    │
+    └─ stocks 테이블에 존재하는 종목만 daily_prices에 UPSERT
+```
+
+| 데이터 소스 | URL | 수집 내용 |
+|-------------|-----|-----------|
+| 공공데이터포털 | `apis.data.go.kr/.../getStockPriceInfo` | 시가, 고가, 저가, 종가, 거래량 |
+
+> API 데이터는 영업일 익일 13:00 이후 갱신됩니다. 주말/공휴일은 데이터가 없어 자동 스킵됩니다.
+
 ## 로드맵
 
 - [x] Phase 1-1: 네이버 종목토론방 크롤러 구현
@@ -137,6 +159,7 @@ crawl_all_stocks
 - [x] Phase 2-2: 테마/섹터 분류 수집 (500개 테마, 9,000+ 매핑)
 - [x] Phase 2-3: DAG 매시간 스케줄 + 동적 종목 조회
 - [x] 게시글 누락 방지 (페이지 순회 + post_id 비교)
+- [x] 일별 시세 수집 (공공데이터포털 API)
 - [ ] 과거 데이터 백필 + 대용량 처리 (DuckDB/Spark)
 - [ ] dbt 변환 + FastAPI/Metabase 서빙
 - [ ] 운영 안정화 + 추가 데이터소스 (DART 공시 등)

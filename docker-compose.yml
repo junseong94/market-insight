@@ -24,6 +24,7 @@ services:
       - POSTGRES_DB=market_insight
       - POSTGRES_USER=market
       - POSTGRES_PASSWORD=market1234
+      - DATA_GO_KR_API_KEY=${DATA_GO_KR_API_KEY}
       - PYTHONPATH=/opt/airflow/src
       - _PIP_ADDITIONAL_REQUIREMENTS=requests beautifulsoup4 psycopg2-binary python-dotenv
     volumes:
