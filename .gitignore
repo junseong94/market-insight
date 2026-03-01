@@ -1,0 +1,25 @@
+# 보안/환경변수
+.env
+.env.*
+*.pem
+*.key
+*.secret
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Poetry
+poetry.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
