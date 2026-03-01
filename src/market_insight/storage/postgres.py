@@ -43,5 +43,63 @@ class PostgresStorage:
         self.conn.commit()
         cur.close()
 
+    def save_stocks(self, stocks):
+        """종목 마스터 UPSERT"""
+        cur = self.conn.cursor()
+
+        # 기존 종목 비활성화 후 수집된 종목만 활성화 (순위 밖으로 밀린 종목 처리)
+        cur.execute("UPDATE stocks SET is_active = FALSE")
+
+        for stock in stocks:
+            cur.execute("""
+                INSERT INTO stocks (stock_code, name, market, market_cap, rank, is_active, updated_at)
+                VALUES (%(stock_code)s, %(name)s, %(market)s, %(market_cap)s, %(rank)s, TRUE, NOW())
+                ON CONFLICT (stock_code) DO UPDATE SET
+                    name       = EXCLUDED.name,
+                    market     = EXCLUDED.market,
+                    market_cap = EXCLUDED.market_cap,
+                    rank       = EXCLUDED.rank,
+                    is_active  = TRUE,
+                    updated_at = NOW()
+            """, stock)
+
+        self.conn.commit()
+        cur.close()
+
+    def save_themes(self, themes, stock_themes):
+        """테마 + 종목-테마 매핑 저장"""
+        cur = self.conn.cursor()
+
+        for theme in themes:
+            cur.execute("""
+                INSERT INTO themes (theme_code, theme_name, updated_at)
+                VALUES (%(theme_code)s, %(theme_name)s, NOW())
+                ON CONFLICT (theme_code) DO UPDATE SET
+                    theme_name = EXCLUDED.theme_name,
+                    updated_at = NOW()
+            """, theme)
+
+        # 매핑 초기화 후 재삽입
+        cur.execute("DELETE FROM stock_themes")
+        for mapping in stock_themes:
+            # stocks 테이블에 존재하는 종목만 삽입 (FK 제약)
+            cur.execute("""
+                INSERT INTO stock_themes (stock_code, theme_code)
+                SELECT %(stock_code)s, %(theme_code)s
+                WHERE EXISTS (SELECT 1 FROM stocks WHERE stock_code = %(stock_code)s)
+                ON CONFLICT DO NOTHING
+            """, mapping)
+
+        self.conn.commit()
+        cur.close()
+
+    def get_active_stocks(self):
+        """활성 종목 코드 목록 조회 (DAG에서 사용)"""
+        cur = self.conn.cursor()
+        cur.execute("SELECT stock_code FROM stocks WHERE is_active = TRUE ORDER BY rank")
+        codes = [row[0] for row in cur.fetchall()]
+        cur.close()
+        return codes
+
     def close(self):
         self.conn.close()
