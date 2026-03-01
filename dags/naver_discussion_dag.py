@@ -45,7 +45,7 @@ def crawl_all_stocks(**context):
 
 with DAG(
     dag_id="naver_discussion",
-    schedule_interval="0 * * * 1-5",  # 평일 매시간
+    schedule_interval="0 * * * *",  # 매시간
     start_date=pendulum.datetime(2026, 3, 1, tz=KST),
     catchup=False,
     tags=["naver", "discussion"],

@@ -39,7 +39,7 @@ def update_themes():
 
 with DAG(
     dag_id="stock_listing_update",
-    schedule_interval="0 6 * * 1-5",  # 평일 06:00 KST (장 시작 전)
+    schedule_interval="0 6 * * *",  # 매일 06:00 KST
     start_date=pendulum.datetime(2026, 3, 1, tz=KST),
     catchup=False,
     tags=["naver", "stock_listing"],
