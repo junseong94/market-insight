@@ -1,0 +1,12 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: market-insight-db
+    ports:
+      - "5433:5432"
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
